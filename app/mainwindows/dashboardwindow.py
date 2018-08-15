@@ -1,7 +1,8 @@
 """ Dashboard screen for VIMAAN """
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QSizePolicy, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QTableView, QPushButton, QLabel, QComboBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QSizePolicy, QDesktopWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QTableView, QPushButton, QLabel, QComboBox
 from PyQt5.QtGui import QFont, QPainter, QFontMetrics
-from PyQt5.QtCore import QSize, Qt, QAbstractTableModel
+from PyQt5.QtCore import QSize, Qt, pyqtSignal
+
 import sys
 
 import pandas as pd
@@ -30,7 +31,7 @@ class MenuButton(QPushButton):
 
 
 	def minimumSizeHint(self):
-		return QSize(self.sizeHint().width(), self.sizeHint().height()+20)
+		return QSize(self.sizeHint().width(), self.sizeHint().height()+10)
 
 
 # A custom 'resizable label' class (that trucates text with elipsis ...)
@@ -64,47 +65,13 @@ class ResizeableLabel(QLabel):
 		self.setToolTip(text)
 
 
-# A custom 'Table Model' to display data from pandas dataframe
-class DataFrameModel(QAbstractTableModel):
-
-	# reimplement constructor (implement constructor of super-class)
-	def __init__(self, data, parent=None):
-		super().__init__(parent)
-		self._data = data
-
-	# implement all methods of the 'Abstract Table Model' to create concrete class
-	def rowCount(self, parent=None):
-		return self._data.shape[0]
-
-	def columnCount(self, parent=None):
-		return self._data.shape[1]
-
-	def data(self, index, role=Qt.DisplayRole):
-
-		if index.isValid() and role == Qt.DisplayRole:
-			print(index.row(), index.column())
-			if not pd.isnull(self._data.iloc[index.row(), index.column()]):
-				return str(self._data.iloc[index.row(), index.column()])
-
-			else:
-				return ''
-
-		return None
-
-	def headerData(self, section, orientation, role):
-
-		if role == Qt.DisplayRole:
-			if orientation == Qt.Horizontal:
-				return self._data.columns[section]
-
-			if orientation == Qt.Vertical:
-				return self._data.index[section]
-
-		return None
-
-
 # Customise the QMainWindow widget to create VIMAAN dashboard
 class DashboardWindow(QMainWindow):
+
+	# define the custom signals for use by controller
+	select_chromedriver_menu_pressed = pyqtSignal()
+	import_data_menu_pressed = pyqtSignal()
+	preprocess_data_menu_pressed = pyqtSignal()
 
 	def __init__(self):
 		# initialise the QMainWindow
@@ -116,16 +83,24 @@ class DashboardWindow(QMainWindow):
 		# create and display the 'Menu' widgets
 		menu_pane = QVBoxLayout()
 
-		import_data_btn = MenuButton('Import Data')
-		preprocess_data_btn = MenuButton('Preprocess Data')
-		populate_iata_btn = MenuButton('Populate IATAs')
+		select_chromedriver_btn = MenuButton('Select ChromeDriver')
+		self.import_data_btn = MenuButton('Import Data')
+		self.preprocess_data_btn = MenuButton('Preprocess Data')
+		self.populate_iata_btn = MenuButton('Populate IATAs')
 
-		preprocess_data_btn.setEnabled(False)
-		populate_iata_btn.setEnabled(False)
+		self.import_data_btn.setEnabled(False)
+		self.preprocess_data_btn.setEnabled(False)
+		self.populate_iata_btn.setEnabled(False)
 
-		menu_pane.addWidget(import_data_btn)
-		menu_pane.addWidget(preprocess_data_btn)
-		menu_pane.addWidget(populate_iata_btn)
+		menu_pane.addWidget(select_chromedriver_btn)
+		menu_pane.addWidget(self.import_data_btn)
+		menu_pane.addWidget(self.preprocess_data_btn)
+		menu_pane.addWidget(self.populate_iata_btn)
+
+		# connect the custom controller signals to menu button's pressed event
+		select_chromedriver_btn.pressed.connect(self.select_chromedriver_menu_pressed)
+		self.import_data_btn.pressed.connect(self.import_data_menu_pressed)
+		self.preprocess_data_btn.pressed.connect(self.preprocess_data_menu_pressed)
 
 		# create and display 'About VIMAAN' widgets
 		about_vimaan_pane = QGroupBox('About VIMAAN')
@@ -148,6 +123,19 @@ class DashboardWindow(QMainWindow):
 		left_panel.addWidget(about_vimaan_pane)
 		left_panel.addStretch(1)
 
+		# create and display 'chromedriver' widgets
+		chromedriver_pane = QHBoxLayout()
+
+		chromedriver_label = QLabel('Chrome Driver:  ')
+		chromedriver_label_font = QFont("Verdana, Helvetica", 10, QFont.Bold)
+		chromedriver_label.setFont(chromedriver_label_font)
+
+		self.chromedriver_path_label = ResizeableLabel('')
+		self.chromedriver_path_label.setStyleSheet("border: 1px inset grey;")
+
+		chromedriver_pane.addWidget(chromedriver_label)
+		chromedriver_pane.addWidget(self.chromedriver_path_label)
+
 		# create and display 'input filename' widgets
 		input_file_pane = QHBoxLayout()
 
@@ -155,85 +143,86 @@ class DashboardWindow(QMainWindow):
 		input_file_label_font = QFont("Verdana, Helvetica", 10, QFont.Bold)
 		input_file_label.setFont(input_file_label_font)
 
-		input_filename_label = ResizeableLabel('')
-		input_filename_label.setStyleSheet("border: 1px inset grey;")
+		self.input_filename_label = ResizeableLabel('')
+		self.input_filename_label.setStyleSheet("border: 1px inset grey;")
 
 		input_file_pane.addWidget(input_file_label)
-		input_file_pane.addWidget(input_filename_label)
+		input_file_pane.addWidget(self.input_filename_label)
 
-		# create and display input column's group box
-		input_columns_pane = QGroupBox('Input Columns')
+		# create and display input field's group box
+		input_fields_pane = QGroupBox('Input fields')
 
-		# create and display input column's mapping group box
-		input_columns_box = QGridLayout()
+		# create and display input field's mapping group box
+		input_fields_box = QGridLayout()
 
 		cityname_label = QLabel('City Name: ')
 		statename_label = QLabel('State Name: ')
 		countryname_label = QLabel('Country Name: ')
 
-		mapped_cityname_label = QLabel()
-		mapped_statename_label = QLabel()
-		mapped_countryname_label = QLabel()
+		self.mapped_cityname_label = QLabel()
+		self.mapped_statename_label = QLabel()
+		self.mapped_countryname_label = QLabel()
 
-		input_columns_box.addWidget(cityname_label, 0, 0)
-		input_columns_box.addWidget(mapped_cityname_label, 0, 1)
-		input_columns_box.addWidget(statename_label, 1, 0)
-		input_columns_box.addWidget(mapped_statename_label, 1, 1)
-		input_columns_box.addWidget(countryname_label, 2, 0)
-		input_columns_box.addWidget(mapped_countryname_label, 2, 1)
+		input_fields_box.addWidget(cityname_label, 0, 0)
+		input_fields_box.addWidget(self.mapped_cityname_label, 0, 1)
+		input_fields_box.addWidget(statename_label, 1, 0)
+		input_fields_box.addWidget(self.mapped_statename_label, 1, 1)
+		input_fields_box.addWidget(countryname_label, 2, 0)
+		input_fields_box.addWidget(self.mapped_countryname_label, 2, 1)
 
-		input_columns_pane.setLayout(input_columns_box)
+		input_fields_pane.setLayout(input_fields_box)
 
-		# create and display output column's mapping group box
-		output_columns_pane = QGroupBox('Output Columns')
+		# create and display output field's mapping group box
+		output_fields_pane = QGroupBox('Output fields')
 
-		# create and display input column's mapping group box
-		output_columns_box = QHBoxLayout()
+		# create and display input field's mapping group box
+		output_fields_box = QHBoxLayout()
 
 		iata_label = QLabel('Nearest Airport IATA: ')
-		mapped_iata_label = QLabel()
+		self.mapped_iata_label = QLabel()
 
-		output_columns_box.addWidget(iata_label)
-		output_columns_box.addWidget(mapped_iata_label)
+		output_fields_box.addWidget(iata_label)
+		output_fields_box.addWidget(self.mapped_iata_label)
 
-		output_columns_pane.setLayout(output_columns_box)
+		output_fields_pane.setLayout(output_fields_box)
 
-		# Set font for the columns mapping labels
-		column_label_font = QFont("Times", 11, QFont.Bold)
+		# Set font for the fields mapping labels
+		field_label_font = QFont("Times", 11, QFont.Bold)
 
-		cityname_label.setFont(column_label_font)
-		statename_label.setFont(column_label_font)
-		countryname_label.setFont(column_label_font)
-		iata_label.setFont(column_label_font)
+		cityname_label.setFont(field_label_font)
+		statename_label.setFont(field_label_font)
+		countryname_label.setFont(field_label_font)
+		iata_label.setFont(field_label_font)
 
-		# create and display input column's mapping outer pane
-		input_columns_outer_pane = QVBoxLayout()
+		# create and display input field's mapping outer pane
+		input_fields_outer_pane = QVBoxLayout()
 
-		input_columns_outer_pane.addStretch(1)
-		input_columns_outer_pane.addWidget(input_columns_pane)
-		input_columns_outer_pane.addStretch(1)
+		input_fields_outer_pane.addStretch(1)
+		input_fields_outer_pane.addWidget(input_fields_pane)
+		input_fields_outer_pane.addStretch(1)
 
-		# create and display output column's mapping outer pane
-		output_columns_outer_pane = QVBoxLayout()
+		# create and display output field's mapping outer pane
+		output_fields_outer_pane = QVBoxLayout()
 
-		output_columns_outer_pane.addStretch(1)
-		output_columns_outer_pane.addWidget(output_columns_pane)
-		output_columns_outer_pane.addStretch(1)
+		output_fields_outer_pane.addStretch(1)
+		output_fields_outer_pane.addWidget(output_fields_pane)
+		output_fields_outer_pane.addStretch(1)
 
-		# create and display columns mapping pane
-		columns_mapping_pane = QHBoxLayout()
+		# create and display fields mapping pane
+		fields_mapping_pane = QHBoxLayout()
 
-		columns_mapping_pane.addStretch(1)
-		columns_mapping_pane.addLayout(input_columns_outer_pane)
-		columns_mapping_pane.addStretch(1)
-		columns_mapping_pane.addLayout(output_columns_outer_pane)
-		columns_mapping_pane.addStretch(1)
+		fields_mapping_pane.addStretch(1)
+		fields_mapping_pane.addLayout(input_fields_outer_pane)
+		fields_mapping_pane.addStretch(1)
+		fields_mapping_pane.addLayout(output_fields_outer_pane)
+		fields_mapping_pane.addStretch(1)
 
 		# create and display the 'imported data details' layout
 		import_details_box = QVBoxLayout()
 
+		import_details_box.addLayout(chromedriver_pane)
 		import_details_box.addLayout(input_file_pane)
-		import_details_box.addLayout(columns_mapping_pane)
+		import_details_box.addLayout(fields_mapping_pane)
 
 		# create and display the 'imported data details' widget
 		import_details_pane = QWidget()
@@ -242,12 +231,12 @@ class DashboardWindow(QMainWindow):
 		import_details_pane.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
 		# create and display the 'imported data panel' widgets
-		imported_data_table = QTableView()
+		self.imported_data_table = QTableView()
 
 		imported_data_panel = QVBoxLayout()
 
 		imported_data_panel.addWidget(import_details_pane)
-		imported_data_panel.addWidget(imported_data_table)
+		imported_data_panel.addWidget(self.imported_data_table)
 
 		# create and display the 'dashboard' widgets
 		dashboard_main_pane = QHBoxLayout()
@@ -266,6 +255,35 @@ class DashboardWindow(QMainWindow):
 
 		# set the attributes of the first steps widget
 		self.setWindowTitle('Project VIMAAN - Dashboard')
+		self.resize(QDesktopWidget().availableGeometry().size())
+
+	# set the imported data details in the dashboard
+	def setImportedDataDetails(self, filename, cityname_field, statename_field, countryname_field, iata_field):
+
+		self.input_filename_label.setText(filename)
+		self.mapped_cityname_label.setText(cityname_field)
+		self.mapped_statename_label.setText(statename_field)
+		self.mapped_countryname_label.setText(countryname_field)
+		self.mapped_iata_label.setText(iata_field)
+
+	def setChromeDriverPath(self, chromedriver_path):
+		self.chromedriver_path_label.setText(chromedriver_path)
+
+	# set the table data model
+	def setDataModel(self, data_model):
+		self.imported_data_table.setModel(data_model)
+
+	# enable the import data buttons
+	def enableImportData(self):
+		self.import_data_btn.setEnabled(True)
+
+	# enable the preprocess data button
+	def enablePreprocessData(self):
+		self.preprocess_data_btn.setEnabled(True)
+
+	# enable the populate iata's button
+	def enablePopulateIATAs(self):
+		self.populate_iata_btn.setEnabled(True)
 
 # Test the 'First Steps with VIMAAN' widget
 if __name__ == '__main__':

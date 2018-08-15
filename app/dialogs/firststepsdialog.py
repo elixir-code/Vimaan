@@ -1,9 +1,9 @@
 """ 'First Steps with VIMAAN' instructions screen """
 
 # import necessary libraries for gui creation
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 
 import sys
 
@@ -12,15 +12,16 @@ first_steps_instructions = """
 2. Download the <b>Chrome Driver</b> supported for your browser version from <a href="http://chromedriver.chromium.org/">here</a>.
 """
 
-class FirstStepsWidget(QWidget):
+class FirstStepsDialog(QDialog):
 
 	# define the custom signals for use by controller
-	widget_closed_signal = pyqtSignal()
+	dialog_closed_signal = pyqtSignal()
 
-	def __init__(self):
+	def __init__(self, *args, **kargs):
 
-		# initialise the QWidget
-		super().__init__()
+		# initialise the QDialog
+		super().__init__(*args, **kargs)
+		self.setWindowModality(Qt.WindowModal)
 		self.initUI()
 
 	def initUI(self):
@@ -71,21 +72,19 @@ class FirstStepsWidget(QWidget):
 
 		self.setLayout(first_steps_main_box)
 
-		# set the attributes of the first steps widget
+		# set the attributes of the first steps dialog
 		self.setWindowTitle('First Steps with VIMAAN')
 
-	# reimplement the close event for the widget
 	def closeEvent(self, event):
-		self.widget_closed_signal.emit()
+		self.dialog_closed_signal.emit()
 
-
-# Test the 'First Steps with VIMAAN' widget
+# Test the 'First Steps with VIMAAN' dialog
 if __name__ == '__main__':
 
-	# create and display the application's "First Steps" widget
+	# create and display the application's "First Steps" dialog
 	application = QApplication(sys.argv)
 
-	window = FirstStepsWidget()
+	window = FirstStepsDialog()
 	window.show()
 
 	sys.exit(application.exec())
